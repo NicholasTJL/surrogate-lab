@@ -24,6 +24,8 @@ dependencies = [
     "matplotlib>=3.8",
     "joblib>=1.3",
     "typer>=0.12",
+    "fastapi>=0.110",
+    "python-multipart>=0.0.9",
 ]
 
 [project.optional-dependencies]
@@ -34,6 +36,8 @@ dev = [
     "mypy>=1.10",
     "types-PyYAML",
     "pandas-stubs",
+    "httpx>=0.27",
+    "uvicorn>=0.29",
 ]
 
 [project.urls]

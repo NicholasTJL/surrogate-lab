@@ -1,0 +1,5 @@
+.venv/
+tests/
+docs/
+.github/
+examples/
