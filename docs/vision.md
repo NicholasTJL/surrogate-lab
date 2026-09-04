@@ -80,3 +80,14 @@ Foundation phase: ingestion, schema validation, splitting, preprocessing, the mo
 cross-validation, metrics, residual-based uncertainty, artifact persistence, the CLI, and HTML
 reporting are in place (v0.1.0). Out-of-distribution detection and richer uncertainty
 quantification are the next milestone.
+
+A small FastAPI demo (`src/surrogate_lab/api/`, `GET /demo`, `POST /train` for
+linear-regression-only fits on small uploads) was added ahead of the v0.3.0 schedule. It works
+correctly — verified locally end to end — but is **not deployed live**: the dependency bundle
+(scikit-learn + pandas + matplotlib + scipy + pyarrow, ~478MB) sits right at Vercel's 500MB
+standard Python bundle limit, which triggers an automatic "dependency optimization" step that
+drops the project's own package from the deployed bundle
+(`ModuleNotFoundError: No module named 'surrogate_lab'` at runtime, despite the build itself
+reporting success). Neither `excludeFiles` bundle trimming nor enabling Fluid compute changed
+the outcome — the larger-bundle allowance Vercel's docs mention for Fluid compute appears to be
+a separate, non-self-serve beta. Run the API locally instead: see the root README's quickstart.
