@@ -36,14 +36,33 @@ quickstart):
 This trains linear regression, random forest, and gradient boosting models, 5-fold
 cross-validates each, and writes:
 
-- `examples/beam_deflection/outputs/models/<model>.joblib` (+ `.meta.json`) — one fitted pipeline
-  per model.
+- `examples/beam_deflection/outputs/models/<model>.joblib` (+ `.meta.json`, and `.ood.joblib`
+  holding the fitted out-of-distribution detector) — one fitted pipeline per model.
 - `examples/beam_deflection/outputs/report.html` — a single self-contained HTML report with a
-  metrics comparison table and, per model, a parity plot (with prediction-interval band), a
-  residual plot, and a residual histogram.
+  metrics comparison table and, per model: a parity plot (with prediction-interval band), a
+  residual plot, a residual histogram, an error-by-region breakdown, an auto-generated model
+  card, and a summary of the out-of-distribution detector's calibration.
 
 Then predict on the same data with a saved model:
 
 ```bash
 .venv\Scripts\surrogate-lab predict examples\beam_deflection\outputs\models\random_forest.joblib examples\beam_deflection\data.csv examples\beam_deflection\outputs\predictions.csv --interval
 ```
+
+Each prediction row also gets an out-of-distribution assessment (`within_training_domain`,
+`ood_warnings`, `nearest_neighbor_distance` columns) by default; pass `--no-ood` to skip it.
+
+## Bootstrap-ensemble uncertainty and Mahalanobis OOD detection
+
+[`config_bootstrap.yaml`](config_bootstrap.yaml) trains the same dataset with the bootstrap
+uncertainty method (30 resampled fits per model, giving a per-point interval instead of a
+single global one) and Mahalanobis-distance out-of-distribution detection, and bins the
+error-by-region breakdown by `load_n` instead of the default target:
+
+```bash
+.venv\Scripts\surrogate-lab train examples\beam_deflection\config_bootstrap.yaml
+```
+
+This takes noticeably longer than the default config (roughly 30x a single random-forest fit,
+plus the primary fit and cross-validation) — that N-times cost is the real, documented tradeoff
+of the bootstrap method, not a fixed constant; see the root README's "Uncertainty" section.

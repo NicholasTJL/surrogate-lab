@@ -60,11 +60,27 @@ out permanently:
 
 ## v0.2.0: reliability release
 
-- Prediction intervals via bootstrap ensembles and Gaussian-process uncertainty.
-- Feature range checks, nearest-neighbour distance, and a Mahalanobis-distance option for
-  out-of-distribution detection.
-- Ensemble-disagreement warnings and a structured out-of-distribution response schema.
-- Model cards and error analysis by data region.
+Delivered:
+
+- Bootstrap-ensemble prediction intervals (`uncertainty.method: bootstrap`), selectable in
+  config alongside the existing residual-based method — a genuine alternative (per-point,
+  heteroscedastic estimate at N times the training cost), not a replacement.
+- Feature range checks, nearest-neighbour distance (Euclidean by default, with a Mahalanobis
+  option), and ensemble-disagreement warnings for out-of-distribution detection, behind a
+  structured pydantic `OODAssessment` response, surfaced in `surrogate-lab predict` and the
+  HTML report.
+- Model cards and error analysis by data region, auto-generated per trained model in the HTML
+  report from the actual training run's numbers.
+
+Deliberately deferred, not attempted this release:
+
+- **Gaussian-process uncertainty.** Considered and dropped: it only makes mathematical sense
+  paired with a Gaussian-process model, not applied to e.g. random forest or gradient boosting
+  predictions. Doing it properly means adding `gaussian_process` as a fourth model type to the
+  registry as well as a third uncertainty method — judged disproportionate new complexity next
+  to bootstrap ensembles and out-of-distribution detection, which were more clearly in scope and
+  well-defined. Candidate for a future release once there's a concrete need for a model type
+  that supports it natively.
 
 ## v0.3.0: deployment release
 
@@ -76,10 +92,13 @@ out permanently:
 
 ## Current status
 
-Foundation phase: ingestion, schema validation, splitting, preprocessing, the model registry,
-cross-validation, metrics, residual-based uncertainty, artifact persistence, the CLI, and HTML
-reporting are in place (v0.1.0). Out-of-distribution detection and richer uncertainty
-quantification are the next milestone.
+v0.1.0's foundation (ingestion, schema validation, splitting, preprocessing, the model registry,
+cross-validation, metrics, artifact persistence, the CLI, and HTML reporting) is in place, and
+v0.2.0's reliability work is built on top of it: bootstrap-ensemble uncertainty alongside the
+original residual-based method, out-of-distribution detection (feature range, nearest-neighbour
+and Mahalanobis distance, ensemble disagreement), model cards, and error-by-region analysis.
+Gaussian-process uncertainty was scoped for v0.2.0 and deliberately deferred (see above). A
+served inference API, Docker image, and ONNX export remain the v0.3.0 milestone.
 
 A small FastAPI demo (`src/surrogate_lab/api/`, `GET /demo`, `POST /train` for
 linear-regression-only fits on small uploads) was added ahead of the v0.3.0 schedule. It works
