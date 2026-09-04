@@ -1,0 +1,27 @@
+data:
+  path: tests/fixtures/sample_data.csv
+  format: csv
+
+dataset_schema:
+  features: [length_m, load_n, moment_of_inertia_m4, material]
+  target: deflection_m
+  categorical_features: [material]
+
+models:
+  - linear_regression
+  - random_forest
+
+split:
+  test_size: 0.2
+  val_size: 0.15
+  random_state: 42
+
+cross_validation:
+  enabled: true
+  n_splits: 3
+
+uncertainty:
+  confidence_level: 0.9
+
+output_dir: outputs
+random_state: 42

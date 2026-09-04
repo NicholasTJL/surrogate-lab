@@ -1,0 +1,28 @@
+data:
+  path: examples/beam_deflection/data.csv
+  format: csv
+
+dataset_schema:
+  features: [length_m, load_n, moment_of_inertia_m4, material]
+  target: deflection_m
+  categorical_features: [material]
+
+models:
+  - linear_regression
+  - random_forest
+  - gradient_boosting
+
+split:
+  test_size: 0.2
+  val_size: 0.15
+  random_state: 42
+
+cross_validation:
+  enabled: true
+  n_splits: 5
+
+uncertainty:
+  confidence_level: 0.9
+
+output_dir: examples/beam_deflection/outputs
+random_state: 42
