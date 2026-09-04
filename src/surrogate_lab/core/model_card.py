@@ -15,6 +15,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from numpy.typing import NDArray
 
 from surrogate_lab.core.metrics import Metrics
 from surrogate_lab.core.schema import DatasetSchema
@@ -100,11 +101,11 @@ def build_model_card(
     fitted_estimator: Any,
     schema: DatasetSchema,
     x_train: pd.DataFrame,
-    y_train: np.ndarray,
+    y_train: NDArray[np.float64],
     validation_rows: int,
     test_rows: int,
     metrics_test: Metrics,
-    cv_mae_scores: np.ndarray,
+    cv_mae_scores: NDArray[np.float64],
     uncertainty_method: str,
     confidence_level: float,
     interval_coverage_test: float,

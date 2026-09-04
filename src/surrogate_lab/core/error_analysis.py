@@ -81,9 +81,10 @@ def error_by_region(
     edges = np.quantile(values, np.linspace(0, 1, n_bins + 1))
     edges = np.unique(edges)  # collapse duplicate edges from ties / few distinct values
 
+    bin_index: NDArray[np.intp]
     if len(edges) < 2:
         # Every value is identical: a single bin covering that one value.
-        bin_index = np.zeros(len(values), dtype=int)
+        bin_index = np.zeros(len(values), dtype=np.intp)
         edges = np.array([edges[0], edges[0]])
     else:
         # Bin by the internal edges only, right-open: values equal to the overall max

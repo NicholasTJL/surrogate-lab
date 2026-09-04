@@ -6,6 +6,7 @@ from pathlib import Path
 
 import numpy as np
 import typer
+from numpy.typing import NDArray
 
 from surrogate_lab.core.artifacts import ModelMetadata, load_artifact, save_artifact
 from surrogate_lab.core.config import ConfigError, load_config
@@ -115,7 +116,7 @@ def predict(
     # model's ensemble disagreement should still be checked even if the caller doesn't want
     # interval bounds in the output), so it's computed whenever either --interval or --ood
     # needs it, not gated behind --interval alone.
-    disagreement: np.ndarray | None = None
+    disagreement: NDArray[np.float64] | None = None
     if metadata.uncertainty_method == "bootstrap" and ensemble_pipelines and (interval or ood):
         ensemble_preds = ensemble_predict(ensemble_pipelines, feature_df)
         disagreement = ensemble_disagreement(ensemble_preds)

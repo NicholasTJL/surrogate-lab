@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
+from numpy.typing import NDArray
 
 from surrogate_lab.core.error_analysis import RegionErrorTable
 from surrogate_lab.core.model_card import ModelCard
@@ -201,7 +202,7 @@ def _error_by_region_html(table: RegionErrorTable, model_name: str) -> str:
 
 def _model_section_html(name: str, trained: TrainedModel) -> str:
     residuals = trained.y_test_true - trained.y_test_pred
-    interval_arg: float | np.ndarray
+    interval_arg: float | NDArray[np.float64]
     if trained.bootstrap_interval is not None:
         half_widths = (trained.y_test_upper - trained.y_test_lower) / 2.0
         interval_arg = half_widths
