@@ -8,7 +8,7 @@ attached to an email/issue as a single file.
 from __future__ import annotations
 
 import html
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from surrogate_lab.core.training import ExperimentResult, TrainedModel
@@ -126,7 +126,7 @@ def generate_report(result: ExperimentResult, output_path: Path | str) -> Path:
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    generated_at = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
+    generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     sections = "\n".join(
         _model_section_html(name, trained) for name, trained in result.models.items()
     )
