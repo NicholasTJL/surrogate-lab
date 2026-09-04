@@ -69,6 +69,29 @@ def test_train_with_valid_small_csv_returns_real_report() -> None:
     assert "MAE" in response.text and "RMSE" in response.text
 
 
+def test_train_with_bootstrap_uncertainty_method_returns_per_point_intervals() -> None:
+    csv_bytes = _FIXTURE_CSV.read_bytes()
+
+    response = client.post(
+        "/train",
+        files={"file": ("sample_data.csv", csv_bytes, "text/csv")},
+        data={
+            "features": "length_m, load_n, moment_of_inertia_m4, material",
+            "target": "deflection_m",
+            "uncertainty_method": "bootstrap",
+        },
+    )
+
+    assert response.status_code == 200
+    assert "bootstrap ensemble" in response.text.lower()
+
+
+def test_index_offers_uncertainty_method_choice() -> None:
+    response = client.get("/")
+    assert "uncertainty_method" in response.text
+    assert "bootstrap" in response.text.lower()
+
+
 def test_train_rejects_missing_columns_cleanly() -> None:
     csv_bytes = _FIXTURE_CSV.read_bytes()
 

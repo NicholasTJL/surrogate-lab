@@ -1,34 +1,42 @@
-"""Residual-based prediction intervals.
+"""Prediction-interval methods: residual-based (default) and bootstrap-ensemble.
 
-This is deliberately the simplest honest approach to uncertainty for v0.1.0,
-not a substitute for real predictive uncertainty quantification. See the
-"Uncertainty" section of the README for the method and its limitations.
+Two independent, honestly-scoped methods live here, selected via
+``ExperimentConfig.uncertainty.method``:
 
-Method: fit the model, compute residuals on a held-out validation set, and
-take the empirical quantile of the *absolute* residuals at the requested
-confidence level as a single, symmetric, global half-width. A prediction
-interval is then ``[prediction - half_width, prediction + half_width]`` for
-every point, regardless of where that point sits in feature space.
+**Residual-based** (v0.1.0, default) is the simplest honest approach: fit the model
+once, compute residuals on a held-out validation set, and take the empirical
+quantile of the *absolute* residuals as a single, symmetric, global half-width.
+It assumes residual magnitude is roughly constant across the input domain
+(homoscedasticity) and gives no per-point estimate.
 
-This assumes residual magnitude is roughly constant across the input domain
-(homoscedasticity) and that the validation set is representative of future
-inputs. It will under-cover in regions where the model is locally worse
-(e.g. extrapolation) and over-cover where it is locally better. Bootstrap
-ensembles or Gaussian-process variance (planned for v0.2.0, see
-docs/vision.md) would give per-point, heteroscedastic estimates instead.
+**Bootstrap-ensemble** (v0.2.0) trains N resamples of the same model on
+bootstrap-resampled training data (bagging) and uses the spread of the N
+predictions at each point as that point's interval. This is a genuine
+alternative, not a replacement: it gives a per-point, heteroscedastic estimate
+(wider where the ensemble disagrees, narrower where it agrees), which the
+residual method cannot. It costs N times the training time of a single fit,
+and it is still only as good as the base model and the resampling procedure —
+it does not capture uncertainty about whether the *model class itself* is
+wrong for the data (model-form uncertainty), and with a small or unrepresentative
+training set, all N resamples can still agree while being collectively wrong.
+Neither method detects out-of-distribution inputs; see ``core.ood`` for that,
+including how ensemble disagreement doubles as one of its signals.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import numpy as np
+import pandas as pd
 from numpy.typing import NDArray
+from sklearn.pipeline import Pipeline
 
 
 @dataclass(frozen=True)
 class PredictionInterval:
-    """A single global half-width for a symmetric prediction interval."""
+    """A single global half-width for a symmetric, residual-based prediction interval."""
 
     half_width: float
     confidence_level: float
@@ -82,3 +90,93 @@ def empirical_coverage(
     lower, upper = interval.bounds(y_pred)
     within = (y_true >= lower) & (y_true <= upper)
     return float(np.mean(within))
+
+
+@dataclass(frozen=True)
+class BootstrapPredictionInterval:
+    """A per-point prediction interval derived from bootstrap-ensemble spread."""
+
+    confidence_level: float
+    n_estimators: int
+
+    def bounds(
+        self, ensemble_predictions: NDArray[np.float64]
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+        """Return ``(lower, upper)`` per point from ``ensemble_predictions``.
+
+        Args:
+            ensemble_predictions: Array of shape ``(n_estimators, n_points)``,
+                one row per ensemble member's predictions on the same inputs.
+        """
+        alpha = 1 - self.confidence_level
+        lower = np.quantile(ensemble_predictions, alpha / 2, axis=0)
+        upper = np.quantile(ensemble_predictions, 1 - alpha / 2, axis=0)
+        return np.asarray(lower, dtype=float), np.asarray(upper, dtype=float)
+
+    def half_widths(self, ensemble_predictions: NDArray[np.float64]) -> NDArray[np.float64]:
+        """Per-point half-width, i.e. half the ``(lower, upper)`` gap at each point."""
+        lower, upper = self.bounds(ensemble_predictions)
+        return (upper - lower) / 2.0
+
+
+def fit_bootstrap_ensemble(
+    build_pipeline: Callable[[], Pipeline],
+    x_train: pd.DataFrame,
+    y_train: NDArray[np.float64],
+    n_estimators: int = 30,
+    random_state: int = 42,
+) -> list[Pipeline]:
+    """Train ``n_estimators`` copies of a pipeline, each on a bootstrap resample of the data.
+
+    Each resample draws ``len(x_train)`` rows from ``x_train``/``y_train`` with
+    replacement (the standard bagging procedure), then fits a freshly
+    constructed pipeline (from ``build_pipeline``) on that resample. The
+    pipeline's own randomness (e.g. a random forest's tree construction) is
+    left at whatever ``build_pipeline`` sets it to; the resampling itself is
+    the main source of ensemble diversity, which is what makes this a bagging
+    procedure and not just N identical fits.
+
+    Args:
+        build_pipeline: Returns a fresh, unfitted pipeline each call.
+        x_train: Training features.
+        y_train: Training targets, same length as ``x_train``.
+        n_estimators: Number of bootstrap resamples to train. More members
+            give a smoother, more stable interval estimate at N times the
+            training cost; 30 is a reasonable default for tabular data with
+            fast-to-fit models, not a value derived from theory.
+        random_state: Seed for the resampling draws. Does not seed each
+            member's own model randomness (that comes from ``build_pipeline``).
+
+    Raises:
+        ValueError: If ``n_estimators`` is less than 2 or ``x_train`` is empty.
+    """
+    if n_estimators < 2:
+        raise ValueError("n_estimators must be at least 2 to form an ensemble")
+    if len(x_train) == 0:
+        raise ValueError("cannot fit a bootstrap ensemble on an empty training set")
+
+    rng = np.random.default_rng(random_state)
+    n = len(x_train)
+    pipelines = []
+    for _ in range(n_estimators):
+        resample_idx = rng.integers(0, n, size=n)
+        pipeline = build_pipeline()
+        pipeline.fit(x_train.iloc[resample_idx], y_train[resample_idx])
+        pipelines.append(pipeline)
+    return pipelines
+
+
+def ensemble_predict(pipelines: list[Pipeline], x: pd.DataFrame) -> NDArray[np.float64]:
+    """Predict with every ensemble member. Returns shape ``(len(pipelines), len(x))``."""
+    return np.array([np.asarray(p.predict(x), dtype=float) for p in pipelines])
+
+
+def ensemble_disagreement(ensemble_predictions: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Per-point standard deviation across ensemble members.
+
+    A simple, direct measure of how much the ensemble disagrees at each
+    point; high disagreement is itself a signal that the input may be poorly
+    covered by the training data (see ``core.ood``), independent of the
+    interval width computed from the same predictions.
+    """
+    return np.asarray(np.std(ensemble_predictions, axis=0), dtype=float)

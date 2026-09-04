@@ -1,0 +1,38 @@
+data:
+  path: examples/beam_deflection/data.csv
+  format: csv
+
+dataset_schema:
+  features: [length_m, load_n, moment_of_inertia_m4, material]
+  target: deflection_m
+  categorical_features: [material]
+
+models:
+  - linear_regression
+  - random_forest
+
+split:
+  test_size: 0.2
+  val_size: 0.15
+  random_state: 42
+
+cross_validation:
+  enabled: true
+  n_splits: 5
+
+uncertainty:
+  method: bootstrap
+  confidence_level: 0.9
+  n_bootstrap_estimators: 30
+
+ood:
+  enabled: true
+  nn_distance_percentile: 0.95
+  distance_metric: mahalanobis
+
+error_analysis:
+  region_feature: load_n
+  n_bins: 5
+
+output_dir: examples/beam_deflection/outputs_bootstrap
+random_state: 42

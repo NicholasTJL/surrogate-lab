@@ -19,16 +19,25 @@ def test_generate_report_produces_valid_html_with_expected_content(tmp_path: Pat
     assert content.startswith("<!doctype html>")
     assert "<html" in content and "</html>" in content
 
-    # Each model gets its own section with all three plots embedded as base64 PNGs.
+    # Each model gets its own section with parity/residual/histogram plots plus an
+    # error-by-region chart, all embedded as base64 PNGs.
     for name in result.models:
         assert name in content
-    assert content.count("data:image/png;base64,") == len(result.models) * 3
+    assert content.count("data:image/png;base64,") == len(result.models) * 4
 
     # Metrics table and uncertainty note are present.
     assert "Metrics comparison" in content
     assert "MAE" in content and "RMSE" in content and "MAPE" in content
     assert "residual-based" in content.lower() or "residual based" in content.lower()
     assert "About the uncertainty estimate" in content
+
+    # Model card and error-by-region sections are present per model.
+    assert "Model card:" in content
+    assert "Known limitations" in content
+    assert "Error by" in content
+
+    # Out-of-distribution calibration summary is present.
+    assert "Out-of-distribution detection" in content
 
     # No external file dependencies: no linked stylesheet/script/image files.
     assert "<link " not in content

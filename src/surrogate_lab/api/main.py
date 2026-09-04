@@ -55,6 +55,9 @@ MAX_UPLOAD_BYTES = 1_000_000  # ~1 MB
 MAX_ROWS = 5_000
 MIN_ROWS = 20  # enough rows to leave a sane train/val/test split and 3-fold CV
 CV_N_SPLITS = 3
+# Kept low (vs. the CLI default of 30) to bound live-request latency: bootstrap trains this
+# many linear_regression fits in addition to the primary one.
+BOOTSTRAP_N_ESTIMATORS = 15
 
 _ONLY_MODEL = "linear_regression"
 
@@ -139,6 +142,15 @@ def _index_html() -> str:
     <input type="text" id="target" name="target" placeholder="deflection_m" required>
     <p class="hint">Must be a numeric column.</p>
 
+    <label for="uncertainty_method">Uncertainty method</label>
+    <select id="uncertainty_method" name="uncertainty_method">
+      <option value="residual" selected>Residual-based (single global interval)</option>
+      <option value="bootstrap">Bootstrap ensemble ({BOOTSTRAP_N_ESTIMATORS} members,
+        per-point interval, slower)</option>
+    </select>
+    <p class="hint">See the report's uncertainty note for what each method does and does not
+    guarantee.</p>
+
     <p style="margin-top: 1.25rem;"><button type="submit">Train &amp; view report</button></p>
   </form>
   <div class="limits">
@@ -203,14 +215,18 @@ def _build_schema(df: pd.DataFrame, features: list[str], target: str) -> Dataset
     return DatasetSchema(features=features, target=target, categorical_features=categorical)
 
 
-def _build_config(schema: DatasetSchema) -> ExperimentConfig:
+def _build_config(schema: DatasetSchema, uncertainty_method: str) -> ExperimentConfig:
     return ExperimentConfig(
         data=DataConfig(path="<uploaded>", format="csv"),
         dataset_schema=schema,
         models=[_ONLY_MODEL],
         split=SplitConfig(test_size=0.2, val_size=0.15, random_state=42),
         cross_validation=CrossValidationConfig(enabled=True, n_splits=CV_N_SPLITS),
-        uncertainty=UncertaintyConfig(confidence_level=0.9),
+        uncertainty=UncertaintyConfig(
+            method="bootstrap" if uncertainty_method == "bootstrap" else "residual",
+            confidence_level=0.9,
+            n_bootstrap_estimators=BOOTSTRAP_N_ESTIMATORS,
+        ),
         output_dir="<unused>",
         random_state=42,
     )
@@ -221,12 +237,16 @@ def train(
     file: UploadFile,
     features: str = Form(...),
     target: str = Form(...),
+    uncertainty_method: str = Form("residual"),
 ) -> HTMLResponse:
     """Train a linear-regression model on an uploaded CSV and return the HTML report.
 
     Only ``linear_regression`` is ever used here, deliberately: random forest and
     gradient boosting are not exposed through this API to keep requests within
-    Vercel's serverless function time limit.
+    Vercel's serverless function time limit. ``uncertainty_method`` may be
+    ``"residual"`` (default) or ``"bootstrap"``; bootstrap trains
+    ``BOOTSTRAP_N_ESTIMATORS`` additional linear regressions to keep request
+    latency bounded, a lower count than the CLI's default of 30.
     """
     raw_bytes = file.file.read()
     if len(raw_bytes) > MAX_UPLOAD_BYTES:
@@ -275,7 +295,7 @@ def train(
     except ValidationError as exc:
         return _error_page("Invalid feature/target specification.", detail=str(exc))
 
-    config = _build_config(schema)
+    config = _build_config(schema, uncertainty_method)
 
     try:
         result = train_and_evaluate(df, config)
